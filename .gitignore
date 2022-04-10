@@ -1,3 +1,8 @@
+#### Specific to amaranth projects
+*.vcd
+*.gtkw
+
+#### From github template of .gitignore for python
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
