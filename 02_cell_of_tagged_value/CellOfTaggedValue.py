@@ -60,7 +60,6 @@ if __name__ == "__main__":
     # Prepare : retrieve cli args
     parser = main_parser()
     args = parser.parse_args()
-    isSimulation = ("simulate" == args.action)
 
     # Prepare : prepare the test bench
     m = Module()
