@@ -42,6 +42,6 @@ if __name__ == "__main__":
         yield
         yield
 
-    sim.add_sync_process(process) # or sim.add_sync_process(process), see below
+    sim.add_sync_process(process)
     with sim.write_vcd("test.vcd", "test.gtkw", traces=bleeper.ports()):
         sim.run()
