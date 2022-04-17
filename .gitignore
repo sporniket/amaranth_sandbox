@@ -1,6 +1,9 @@
 #### Specific to amaranth projects
 *.vcd
 *.gtkw
+*.il
+*_bmc
+*_cover
 
 #### From github template of .gitignore for python
 # Byte-compiled / optimized / DLL files
