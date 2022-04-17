@@ -34,7 +34,7 @@ class CellOfTaggedValue(Elaboratable):
             self.writeEnabled, self.dataIn,
 
             #outputs
-            self.isMatching, self.isFree, self.dataOut
+            self.isFree, self.isMatching, self.dataOut
         ]
 
     def elaborate(self, platform: Platform) -> Module:

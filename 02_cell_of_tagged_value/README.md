@@ -28,4 +28,4 @@ _One may chains the two commands into one :_ `python3 CellOfTaggedValue.py gener
 * The module can tell that no value is bounded, yet. A free cell never match.
 * The module can be bound to a given value.
 
-_(BindEnabled,DataIn) &rarr; {isFree,Tag,Value} &rarr; (Free,Match,DataOut)
+_(writeEnabled, dataIn) &rarr; {tag, value} &rarr; (isFree, isMatching, dataOut)_
