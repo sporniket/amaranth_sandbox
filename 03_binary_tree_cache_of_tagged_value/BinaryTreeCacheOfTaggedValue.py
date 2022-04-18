@@ -16,11 +16,34 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
     A new value can be added to the set. When the set is full, a value that has not been recently in use is replaced.
     """
 
-    def __init__(self, tagValue: int, tagShape:Shape, valueShape:Shape):
-        pass
+    def __init__(self, level: int, tagSeed:int, tagWidth:int, valueShape:Shape, isRoot:bool = False):
+        # Store parameters to instanciate submodules inside elaborate
+        self.level = level
+        self.tagSeed = tagSeed
+        self.tagWidth = tagWidth
+        self.valueShape = valueShape
+        self.isRoot = isRoot
+
+        # Registers
+        self.oldest = Signal() # 0 -> left branch/leaf ; 1 -> right branch/leaf
+
+        # inputs
+        self.writeEnabled = Signal() # should be asserted to bind value in dataIn to the tag.
+        self.dataIn = Signal(shape=valueShape, reset_less=True) # the value to compare to internal value, or the value to bind to the tag.
+
+        #outputs
+        self.isMatching = Signal(reset_less=True) # asserted when one of the leaf is binded to dataIn.
+        self.hasFree = Signal(reset_less=True) # asserted when no value has been bound to the tag
+        self.dataOut = Signal(shape=tagShape,reset_less=True) # the tag.
 
     def ports(self) -> List[Signal]:
-        pass
+        return [
+            # inputs
+            self.writeEnabled, self.dataIn,
+
+            #outputs
+            self.isMatching, self.dataOut, self.hasFree
+        ]
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
