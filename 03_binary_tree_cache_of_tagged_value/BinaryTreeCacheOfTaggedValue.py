@@ -17,6 +17,8 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
     """
 
     def __init__(self, level: int, tagSeed:int, tagWidth:int, valueShape:Shape, isRoot:bool = False):
+        if isRoot and tagWidth <= level:
+            raise ValueError('tagWidth should be strictly superior to root level value')
         # Store parameters to instanciate submodules inside elaborate
         self.level = level
         self.tagSeed = tagSeed
@@ -46,7 +48,60 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
         ]
 
     def elaborate(self, platform: Platform) -> Module:
+        if 0 < self.level:
+            return elaborate_tree(self, platform)
+        else
+            return elaborate_tree(self, platform)
+
+    def elaborate_leaf(self, platform: Platform) -> Module:
         m = Module()
+
+        # instanciate submodules
+        subTagSeed = 2 * self.tagSeed
+        m.submodules.left = left = CellOfTaggedValue(subTagSeed, unsigned(self.tagWidth), self.valueShape)
+        m.submodules.right = right = CellOfTaggedValue(subTagSeed, unsigned(self.tagWidth), self.valueShape)
+
+        # wire everything
+        # -- asynchronous logic
+        m.d.comb += [
+            # inputs
+            left.dataIn.eq(self.dataIn),
+            right.dataIn.eq(self.dataIn),
+            # outputs
+            self.isMatching.eq(left.isMatching | right.isMatching),
+            self.hasFree.eq(left.isFree | right.isFree),
+            self.dataOut.eq(Mux(left.isMatching,left.dataOut, right.dataOut))
+        ]
+        if self.isRoot:
+            # the root protect the whole tree against duplicate binding of a value
+            effectiveWriteEnabled = Signal()
+            m.d.comb += [
+                effectiveWriteEnabled.eq(self.writeEnabled & ~self.isMatching),
+                left.writeEnabled.eq(effectiveWriteEnabled),
+                right.writeEnabled.eq(effectiveWriteEnabled)
+            ]
+        else:
+            m.d.comb += [
+                left.writeEnabled.eq(self.writeEnabled),
+                right.writeEnabled.eq(self.writeEnabled)
+            ]
+
+        # -- synchronous logic
+        m.d.sync += [
+            # TODO
+        ]
+        return m
+
+    def elaborate_tree(self, platform: Platform) -> Module:
+        m = Module()
+
+        # instanciate submodules
+        subLevel = self.level - 1
+        subTagSeed = 2 * self.tagSeed
+        m.submodules.left = left = BinaryTreeCacheOfTaggedValue(subLevel, subTagSeed, self.tagWidth, self.valueShape)
+        m.submodules.right = right = BinaryTreeCacheOfTaggedValue(subLevel, subTagSeed + 1, self.tagWidth, self.valueShape)
+
+        # wire everything
         return m
 
 if __name__ == "__main__":
