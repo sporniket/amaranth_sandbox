@@ -61,8 +61,12 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
         m.submodules.left = left = CellOfTaggedValue(subTagSeed, unsigned(self.tagWidth), self.valueShape)
         m.submodules.right = right = CellOfTaggedValue(subTagSeed, unsigned(self.tagWidth), self.valueShape)
 
+        needChangeOldest = Signal
+
         # wire everything
         # -- asynchronous logic
+        # all is asynchronous. The synchronous logic happens
+        # either inside the CellOfTaggedValue (writeEnabled logic) or outside the tree.
         m.d.comb += [
             # inputs
             left.dataIn.eq(self.dataIn),
@@ -71,6 +75,10 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
             self.isMatching.eq(left.isMatching | right.isMatching),
             self.hasFreeTag.eq(left.isFree | right.isFree),
             self.dataOut.eq(Mux(left.isMatching,left.dataOut, right.dataOut))
+            # maintain 'oldest'
+            needChangeOldest.eq((~(self.oldest) & (left.isMatching)) # either the oldest was on the left and it is now matching
+                | ((self.oldes) & (right.isMatching))) # or the oldest was on the right and it is now matching
+            self.oldest.eq(Mux(needChangeOldest), ~(self.oldest), self.oldest)
         ]
         if self.isRoot:
             # the root protect the whole tree against duplicate binding of a value
@@ -86,10 +94,6 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
                 right.writeEnabled.eq(self.writeEnabled)
             ]
 
-        # -- synchronous logic
-        m.d.sync += [
-            # TODO
-        ]
         return m
 
     def elaborate_tree(self, platform: Platform) -> Module:
