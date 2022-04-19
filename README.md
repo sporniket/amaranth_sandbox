@@ -9,4 +9,11 @@ Then, before working, I source the environment using `. /path/to/oss/cad/environ
 
 ## Prerequisite reading
 
-I skimmed over the nMigen tutorials and video of Robert Baruch. You should read/view those for the basics of nMigen/amaranth.
+I skimmed over the nMigen tutorials and videos of Robert Baruch. You should read/view those for the basics of nMigen/amaranth.
+
+* Tutorials of Robert Baruch : https://github.com/RobertBaruch/nmigen-tutorial
+* Videos : [Building a 6800 CPU on an FPGA with nMigen](https://www.youtube.com/playlist?list=PLEeZWGE3PwbbjxV7_XnPSR7ouLR2zjktw)
+
+About formal verification, a little bit of reading about _SymbiYosys_ (`sby`) is helpful :
+
+* [Getting started](https://symbiyosys.readthedocs.io/en/latest/quickstart.html)
