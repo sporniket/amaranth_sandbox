@@ -77,7 +77,7 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
             self.dataOut.eq(Mux(left.isMatching,left.dataOut, right.dataOut))
             # maintain 'oldest'
             needChangeOldest.eq((~(self.oldest) & (left.isMatching)) # either the oldest was on the left and it is now matching
-                | ((self.oldes) & (right.isMatching))) # or the oldest was on the right and it is now matching
+                | ((self.oldest) & (right.isMatching))) # or the oldest was on the right and it is now matching
             self.oldest.eq(Mux(needChangeOldest), ~(self.oldest), self.oldest)
         ]
         if self.isRoot:
@@ -105,7 +105,39 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
         m.submodules.left = left = BinaryTreeCacheOfTaggedValue(subLevel, subTagSeed, self.tagWidth, self.valueShape)
         m.submodules.right = right = BinaryTreeCacheOfTaggedValue(subLevel, subTagSeed + 1, self.tagWidth, self.valueShape)
 
+        needChangeOldest = Signal
+
         # wire everything
+        # -- asynchronous logic
+        # all is asynchronous. The synchronous logic happens
+        # either inside the CellOfTaggedValue (writeEnabled logic) or outside the tree.
+        m.d.comb += [
+            # inputs
+            left.dataIn.eq(self.dataIn),
+            right.dataIn.eq(self.dataIn),
+            # outputs
+            self.isMatching.eq(left.isMatching | right.isMatching),
+            self.hasFreeTag.eq(left.hasFreeTag | right.hasFreeTag),
+            self.dataOut.eq(Mux(left.isMatching,left.dataOut, right.dataOut))
+            # maintain 'oldest'
+            needChangeOldest.eq((~(self.oldest) & (left.isMatching)) # either the oldest was on the left and it is now matching
+                | ((self.oldest) & (right.isMatching))) # or the oldest was on the right and it is now matching
+            self.oldest.eq(Mux(needChangeOldest), ~(self.oldest), self.oldest)
+        ]
+        if self.isRoot:
+            # the root protect the whole tree against duplicate binding of a value
+            effectiveWriteEnabled = Signal()
+            m.d.comb += [
+                effectiveWriteEnabled.eq(self.writeEnabled & ~self.isMatching),
+                left.writeEnabled.eq(effectiveWriteEnabled),
+                right.writeEnabled.eq(effectiveWriteEnabled)
+            ]
+        else:
+            m.d.comb += [
+                left.writeEnabled.eq(self.writeEnabled),
+                right.writeEnabled.eq(self.writeEnabled)
+            ]
+
         return m
 
 if __name__ == "__main__":
