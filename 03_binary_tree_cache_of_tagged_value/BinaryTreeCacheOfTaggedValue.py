@@ -29,8 +29,12 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
         self.isRoot = isRoot
 
         # Registers
-        self.oldest = Signal() # 0 -> left branch/leaf ; 1 -> right branch/leaf
+        # -- book-keeping of the oldest side
+        self.previousOldest = Signal() # 0 -> left branch/leaf ; 1 -> right branch/leaf ; latch of currentOldest
+        self.currentOldest = Signal() # 0 -> left branch/leaf ; 1 -> right branch/leaf
         self.needChangeOldest = Signal()
+        # -- gating writeEnabled
+        self.effectiveWriteEnabled = Signal()
 
         # inputs
         self.writeEnabled = Signal() # should be asserted to bind value in dataIn to the tag.
@@ -62,44 +66,9 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
         # instanciate submodules
         subTagSeed = 2 * self.tagSeed
         m.submodules.left = left = CellOfTaggedValue(subTagSeed, unsigned(self.tagWidth), self.valueShape)
-        m.submodules.right = right = CellOfTaggedValue(subTagSeed, unsigned(self.tagWidth), self.valueShape)
+        m.submodules.right = right = CellOfTaggedValue(subTagSeed + 1, unsigned(self.tagWidth), self.valueShape)
 
-        needChangeOldest = Signal()
-
-        # wire everything
-        # -- asynchronous logic
-        # all is asynchronous. The synchronous logic happens
-        # either inside the CellOfTaggedValue (writeEnabled logic) or outside the tree.
-        m.d.comb += [
-            # inputs
-            left.dataIn.eq(self.dataIn),
-            right.dataIn.eq(self.dataIn),
-            # outputs
-            self.isMatching.eq(left.isMatching | right.isMatching),
-            self.hasFreeTag.eq(left.isFree | right.isFree),
-            self.dataOut.eq(Mux(left.isMatching,left.dataOut, right.dataOut)),
-            # maintain 'oldest'
-            self.needChangeOldest.eq((~(self.oldest) & (left.isMatching)) # either the oldest was on the left and it is now matching
-                | ((self.oldest) & (right.isMatching))) # or the oldest was on the right and it is now matching
-        ]
-        if self.isRoot:
-            # the root protect the whole tree against duplicate binding of a value
-            effectiveWriteEnabled = Signal()
-            m.d.comb += [
-                effectiveWriteEnabled.eq(self.writeEnabled & ~self.isMatching),
-                left.writeEnabled.eq(effectiveWriteEnabled),
-                right.writeEnabled.eq(effectiveWriteEnabled)
-            ]
-        else:
-            m.d.comb += [
-                left.writeEnabled.eq(self.writeEnabled),
-                right.writeEnabled.eq(self.writeEnabled)
-            ]
-
-        m.d.sync += [
-            self.oldest.eq(Mux(needChangeOldest, ~(self.oldest), self.oldest))
-        ]
-
+        self.wireEverything(m, True)
         return m
 
     def elaborate_tree(self, platform: Platform) -> Module:
@@ -111,40 +80,43 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
         m.submodules.left = left = BinaryTreeCacheOfTaggedValue(subLevel, subTagSeed, self.tagWidth, self.valueShape, isRoot=False)
         m.submodules.right = right = BinaryTreeCacheOfTaggedValue(subLevel, subTagSeed + 1, self.tagWidth, self.valueShape, isRoot=False)
 
-        needChangeOldest = Signal()
+        self.wireEverything(m)
+        return m
 
-        # wire everything
-        # -- asynchronous logic
-        # all is asynchronous. The synchronous logic happens
-        # either inside the CellOfTaggedValue (writeEnabled logic) or outside the tree.
+    def wireEverything(self, m:Module, isLeaf:bool=False):
+        left = m.submodules.left
+        right = m.submodules.right
+
+        # the root protect the whole tree against duplicate binding of a value
+        exprEffectiveWriteEnabled = (~self.isMatching & self.writeEnabled) if self.isRoot else (self.writeEnabled)
+        exprHasFreeTag = (left.isFree | right.isFree) if isLeaf else (left.hasFreeTag | right.hasFreeTag)
+
         m.d.comb += [
-            # inputs
+            # effective Write Enabled for this module
+            self.effectiveWriteEnabled.eq(exprEffectiveWriteEnabled),
+            # book-keeping of the oldest side
+            self.needChangeOldest.eq(#
+                (~self.previousOldest & left.isMatching) # either the oldest was on the left and it is now matching
+                | (self.previousOldest & right.isMatching) # or the oldest was on the right and it is now matching
+                ),
+            self.currentOldest.eq(Mux(self.needChangeOldest, ~(self.previousOldest), self.previousOldest)),
+            # wire effectiveEnabled to the oldest side
+            left.writeEnabled.eq(~self.currentOldest & self.effectiveWriteEnabled),
+            right.writeEnabled.eq(self.currentOldest & self.effectiveWriteEnabled),
+            # fanout inputs
             left.dataIn.eq(self.dataIn),
             right.dataIn.eq(self.dataIn),
-            # outputs
+            # combine outputs
             self.isMatching.eq(left.isMatching | right.isMatching),
-            self.hasFreeTag.eq(left.hasFreeTag | right.hasFreeTag),
-            self.dataOut.eq(Mux(left.isMatching,left.dataOut, right.dataOut)),
-            # maintain 'oldest'
-            needChangeOldest.eq((~(self.oldest) & (left.isMatching)) # either the oldest was on the left and it is now matching
-                | ((self.oldest) & (right.isMatching))),
-            self.oldest.eq(Mux(needChangeOldest, ~(self.oldest), self.oldest))
+            self.hasFreeTag.eq(exprHasFreeTag),
+            self.dataOut.eq(Mux(left.isMatching,left.dataOut, right.dataOut))
         ]
-        if self.isRoot:
-            # the root protect the whole tree against duplicate binding of a value
-            effectiveWriteEnabled = Signal()
-            m.d.comb += [
-                effectiveWriteEnabled.eq(self.writeEnabled & ~self.isMatching),
-                left.writeEnabled.eq(effectiveWriteEnabled),
-                right.writeEnabled.eq(effectiveWriteEnabled)
-            ]
-        else:
-            m.d.comb += [
-                left.writeEnabled.eq(self.writeEnabled),
-                right.writeEnabled.eq(self.writeEnabled)
-            ]
 
-        return m
+        m.d.sync += [
+            # latches the current oldest
+            self.previousOldest.eq(self.currentOldest)
+        ]
+
 
 if __name__ == "__main__":
     # Prepare
@@ -176,7 +148,7 @@ if __name__ == "__main__":
 
     def mySimulation(sim:Simulator, m:Module):
         # !!! limit the number of clockcycle !
-        # python3 BinaryTreeCacheOfTaggedValue.py simulate -v test.vcd -w test.gtkw -c 5 
+        # python3 BinaryTreeCacheOfTaggedValue.py simulate -v test.vcd -w test.gtkw -c 5
         def process():
             print("Start !")
             # fill 3 slots
