@@ -12,8 +12,8 @@ multiclock off
 smtbmc boolector
 
 [script]
-read_ilang CellOfTaggedValue__test.il
+read_ilang __test.il
 prep -top top
 
 [files]
-CellOfTaggedValue__test.il
+__test.il

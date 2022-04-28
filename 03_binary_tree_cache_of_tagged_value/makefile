@@ -9,8 +9,15 @@ sources_top=BinaryTreeCacheOfTaggedValue.py
 %.gtkw: %.py $(sources_utils)
 	python3 $< simulate -v $@ -c 20
 
+%.il: %.py $(sources_utils)
+	@echo "########################################[ START VERIFY $< ]"
+	python3 $< generate -t il $@
+	cp $@ __test.il
+	sby -f test.sby
+	@echo "########################################[ END VERIFY $< ]"
+
 .PHONY: simulations verifications
 
 simulations: $(sources_modules:.py=.vcd) $(sources_modules:.py=.gtkw)
 
-verifications:
+verifications: $(sources_modules:.py=.il)
