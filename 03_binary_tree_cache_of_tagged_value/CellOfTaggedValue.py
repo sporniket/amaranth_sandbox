@@ -26,6 +26,7 @@ class CellOfTaggedValue(Elaboratable):
         #outputs
         self.isMatching = Signal() # asserted when the cell is not free, and dataIn is matching the value.
         self.isFree = Signal(reset=1) # asserted when no value has been bound to the tag
+        self.isBound = Signal() # asserted when a value has just been bound
         self.dataOut = Signal(shape=tagShape,reset=tagValue) # the tag.
 
     def ports(self) -> List[Signal]:
@@ -34,7 +35,7 @@ class CellOfTaggedValue(Elaboratable):
             self.writeEnabled, self.dataIn,
 
             #outputs
-            self.isFree, self.isMatching, self.dataOut
+            self.isFree, self.isMatching, self.isBound, self.dataOut
         ]
 
     def elaborate(self, platform: Platform) -> Module:
@@ -50,6 +51,9 @@ class CellOfTaggedValue(Elaboratable):
                 self.value.eq(self.dataIn),
                 self.isFree.eq(Const(0))
             ]
+
+        # in effect, isBound latches writeEnabled
+        m.d.sync += self.isBound.eq(self.writeEnabled)
 
         return m
 
@@ -86,13 +90,15 @@ if __name__ == "__main__":
             # -- Reset renders the cell free again
             m.d.sync += [
                 Assert(taggedValue.isFree),
-                Assert(~taggedValue.isMatching)
+                Assert(~taggedValue.isMatching),
+                Assert(~taggedValue.isBound)
             ]
         with m.If(~Past(rst) & Past(taggedValue.writeEnabled)):
             # -- Write enabled bind the cell to a value, and the cell immediately matches the binded value.
             m.d.sync += [
                 Assert(~taggedValue.isFree),
-                Assert(taggedValue.isMatching)
+                Assert(taggedValue.isMatching),
+                Assert(taggedValue.isBound)
             ]
         with m.If(# 2 clock cycles ago, Bind Cell to 15
                 (Past(dataIn,2) == 15) & Past(writeEnabled,2)
@@ -103,7 +109,12 @@ if __name__ == "__main__":
             ):
             # -- Only the binded value at dataIn triggers a match
             m.d.sync += [
-                Assert(~(taggedValue.isMatching))
+                Assert(~taggedValue.isMatching),
+                Assert(~taggedValue.isBound)
+            ]
+        with m.If(~Past(writeEnabled)):
+            m.d.sync += [
+                Assert(~taggedValue.isBound)
             ]
 
     def mySimulation(sim:Simulator, m:Module):

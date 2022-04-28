@@ -42,6 +42,7 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
 
         #outputs
         self.isMatching = Signal() # asserted when one of the leaf is binded to dataIn.
+        self.isBound = Signal() # asserted when one of the leaf has just been bound to a value.
         self.hasFreeTag = Signal(reset_less=True) # asserted when no value has been bound to the tag
         self.dataOut = Signal(shape=unsigned(tagWidth),reset_less=True) # the tag.
 
@@ -51,7 +52,7 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
             self.writeEnabled, self.dataIn,
 
             #outputs
-            self.isMatching, self.dataOut, self.hasFreeTag
+            self.isMatching, self.isBound, self.dataOut, self.hasFreeTag
         ]
 
     def elaborate(self, platform: Platform) -> Module:
