@@ -98,7 +98,7 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
             # book-keeping of the oldest side
             self.needChangeOldest.eq(#
                 (~self.previousOldest & (left.isMatching | left.isBound)) # either the oldest was on the left and it is now matching or have just been bound
-                | (self.previousOldest & right.isMatching | left.isBound) # or the oldest was on the right and it is now matching or have just been bound
+                | (self.previousOldest & (right.isMatching | left.isBound)) # or the oldest was on the right and it is now matching or have just been bound
                 ),
             self.currentOldest.eq(Mux(self.needChangeOldest, ~(self.previousOldest), self.previousOldest)),
             # wire effectiveEnabled to the oldest side
