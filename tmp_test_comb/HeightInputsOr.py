@@ -4,6 +4,8 @@ from amaranth.build import Platform
 from typing import List, Dict, Tuple, Optional
 ### test deps ###
 from amaranth.sim import Simulator, Delay, Settle, Tick
+from amaranth.cli import main_parser, main_runner # READ amaranth/cli.py to find out parameters and what it does.
+from amaranth.asserts import * # AnyConst, AnySeq, Assert, Assume, Cover, Past, Stable, Rose, Fell, Initial
 
 class SimpleOr(Elaboratable):
     """
@@ -24,7 +26,7 @@ class SimpleOr(Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         print(f"Elaborate SimpleOr {self}")
         m = Module()
-        m.d.comp += [
+        m.d.comb += [
             self.out.eq(self.left | self.right)
         ]
         m.d.sync += [
@@ -92,28 +94,95 @@ class HeightInputOr(Elaboratable):
         ]
         return m
 
-### Test suite ###
-if __name__ == "__main__":
-    m = Module()
-    m.submodules.dut = dut = SimpleOr()#HeightInputOr()
-
+# callback when simulating
+def onSimulate(m: Module, dut: Elaboratable):
+    print('--> onSimulate')
     #workaround sim bug
-    #out = Signal()
-    #dut.out.eq(out)
+    out = Signal()
+    out.eq(dut.out)
 
     sim = Simulator(m)
     sim.add_clock(1e-6)
 
     def process():
         # set each of the input the active one
-        yield dut.left.eq(1)#dut.d0.eq(1)
-        yield Tick()
-        yield dut.left.eq(0)
-        yield dut.right.eq(1)
-        yield Tick()
-        yield Tick()
-        yield Tick()
+        yield dut.d0.eq(1)
+        yield
+        yield dut.d0.eq(0)
+        yield
+        yield dut.d1.eq(1)
+        yield
+        yield dut.d1.eq(0)
+        yield
+        yield dut.d2.eq(1)
+        yield
+        yield dut.d2.eq(0)
+        yield
+        yield dut.d3.eq(1)
+        yield
+        yield dut.d3.eq(0)
+        yield
+        yield dut.d4.eq(1)
+        yield
+        yield dut.d4.eq(0)
+        yield
+        yield dut.d5.eq(1)
+        yield
+        yield dut.d5.eq(0)
+        yield
+        yield dut.d6.eq(1)
+        yield
+        yield dut.d6.eq(0)
+        yield
+        yield dut.d7.eq(1)
+        yield
+        yield dut.d7.eq(0)
+        yield
+        yield
 
-    sim.add_process(process)
+    sim.add_sync_process(process)
     with sim.write_vcd("test.vcd", "test.gtkw", traces=dut.ports()):
         sim.run()
+
+def onGenerateForCoverage(parser, args, m:Module, dut: Elaboratable):
+    print('--> onGenerateForCoverage')
+
+    # prepare some other signals
+    nameOfClockDomain = "sync"
+    m.domains.sync = sync = ClockDomain(nameOfClockDomain)
+    syncClk = ClockSignal(nameOfClockDomain)
+    rst = Signal()
+    sync.rst = rst
+
+    with m.If(Past(rst)):
+        m.d.sync += [
+            Assert(~dut.out)
+        ]
+    with m.If(~Past(rst) &
+        (Past(dut.d0) | Past(dut.d1) | Past(dut.d2) | Past(dut.d3) | Past(dut.d4) | Past(dut.d5) | Past(dut.d6) | Past(dut.d7))):
+        m.d.sync += [
+            Assert(dut.out)
+        ]
+    with m.If(~Past(rst) &
+        (~Past(dut.d0) & ~Past(dut.d1) & ~Past(dut.d2) & ~Past(dut.d3) & ~Past(dut.d4) & ~Past(dut.d5) & ~Past(dut.d6) & ~Past(dut.d7))):
+        m.d.sync += [
+            Assert(~dut.out)
+        ]
+    # Execute
+    main_runner(parser, args, m, ports=dut.ports())
+
+### Test suite ###
+if __name__ == "__main__":
+    # Prepare
+    # Prepare : retrieve cli args
+    parser = main_parser()
+    args = parser.parse_args()
+
+    # Prepare : prepare test bench
+    m = Module()
+    m.submodules.dut = dut = HeightInputOr()
+
+    if args.action == "generate":
+        onGenerateForCoverage(parser, args, m, dut)
+    else:
+        onSimulate(m, dut)
