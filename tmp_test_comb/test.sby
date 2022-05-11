@@ -12,8 +12,8 @@ multiclock off
 smtbmc boolector
 
 [script]
-read_ilang HeightInputsOr.il
+read_ilang EightInputsOr.il
 prep -top top
 
 [files]
-HeightInputsOr.il
+EightInputsOr.il
