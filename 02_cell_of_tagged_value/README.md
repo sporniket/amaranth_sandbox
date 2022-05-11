@@ -15,7 +15,7 @@ _One may chains the two commands into one :_ `python3 CellOfTaggedValue.py simul
 
 ### How to perform formal verification and view generated simulation data
 
-* Generate the formal verification source `test.il` : `python3 CellOfTaggedValue.py generate -t il CellOfTaggedValue__test.il`
+* Generate the formal verification source `CellOfTaggedValue__test.il` : `python3 CellOfTaggedValue.py generate -t il CellOfTaggedValue__test.il`
 * Perform the formal verification : `sby -f test.sby`
 
 _One may chains the two commands into one :_ `python3 CellOfTaggedValue.py generate -t il CellOfTaggedValue__test.il && sby -f test.sby`
