@@ -119,6 +119,134 @@ class BinaryTreeCacheOfTaggedValue(Elaboratable):
             self.previousOldest.eq(self.currentOldest)
         ]
 
+class TestBench(Elaboratable):
+    def __init__(self, level: int, tagSeed:int, tagWidth:int, valueShape:Shape):
+        self.dut = BinaryTreeCacheOfTaggedValue(1, 0, 2, dataInShape)
+        self.sync = ClockDomain()
+        # inputs
+        self.writeEnabled = Signal() # should be asserted to bind value in dataIn to the tag.
+        self.dataIn = Signal(shape=valueShape, reset_less=True) # the value to compare to internal value, or the value to bind to the tag.
+        #outputs
+        self.isMatching = Signal() # asserted when one of the leaf is binded to dataIn.
+        self.isBound = Signal() # asserted when one of the leaf has just been bound to a value.
+        self.hasFreeTag = Signal(reset_less=True) # asserted when no value has been bound to the tag
+        self.dataOut = Signal(shape=unsigned(tagWidth),reset_less=True) # the tag.
+
+        pass
+
+    def ports(self) -> List[Signal]:
+        return [
+            self.sync.clk, self.sync.rst,
+            # inputs
+            self.dut.writeEnabled, self.dut.dataIn,
+            # outputs
+            self.isMatching, self.isBound, self.hasFreeTag, self.dataOut
+        ]
+
+    def elaborate(self, platform: Platform) -> Module:
+        m = Module()
+        m.submodules.dut = self.dut
+        m.domains.sync = self.sync
+        # wire everything
+        m.d.comb += [
+            # outputs
+            self.isMatching.eq(self.dut.isMatching),
+            self.isBound.eq(self.dut.isBound),
+            self.hasFreeTag.eq(self.dut.hasFreeTag),
+            self.dataOut.eq(self.dut.dataOut),
+
+            #inputs
+            self.dut.writeEnabled.eq(self.writeEnabled),
+            self.dut.dataIn.eq(self.dataIn)
+        ]
+
+        return m
+def ononGenerateForCoverage(parser, args, m:Module, dut: Elaboratable):
+    print('--> onGenerateForCoverage')
+
+    # prepare some other signals
+    rst = m.submodules.bench.sync.rst
+    # Execute
+    main_runner(parser, args, m, ports=dut.ports())
+
+def onSimulate(m: Module, dut: Elaboratable):
+    print('--> onSimulate')
+
+    # prepare simulator
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+
+    def simulation():
+        # fill 3 slots
+        yield dut.dataIn.eq(1)
+        yield dut.writeEnabled.eq(1)
+        yield
+        yield dut.dataIn.eq(2)
+        yield
+        yield dut.dataIn.eq(4)
+        yield
+        # match the oldest should be the right hand side, make a match to swap to the left
+        yield dut.writeEnabled.eq(0)
+        yield dut.dataIn.eq(2)
+        yield
+        # fill a slot will do that in the left hand side
+        yield dut.dataIn.eq(3)
+        yield dut.writeEnabled.eq(1)
+        yield
+        yield dut.writeEnabled.eq(0)
+        yield
+        # check all the slots
+        yield dut.dataIn.eq(1)
+        yield
+        yield dut.dataIn.eq(2)
+        yield
+        yield dut.dataIn.eq(3)
+        yield
+        yield dut.dataIn.eq(4)
+        yield
+        # no match
+        yield dut.dataIn.eq(5)
+        yield
+        yield dut.dataIn.eq(6)
+        yield
+        yield dut.dataIn.eq(7)
+        yield
+        yield dut.dataIn.eq(8)
+        yield
+        yield dut.dataIn.eq(9)
+        yield
+        yield dut.dataIn.eq(10)
+        yield
+        yield dut.dataIn.eq(11)
+        yield
+        yield dut.dataIn.eq(12)
+        yield
+        yield dut.dataIn.eq(13)
+        yield
+        yield dut.dataIn.eq(14)
+        yield
+        yield dut.dataIn.eq(15)
+        yield
+        yield dut.dataIn.eq(0)
+        yield
+        # replace the value of a 'not recently used slot'
+        yield dut.dataIn.eq(10)
+        yield dut.writeEnabled.eq(1)
+        yield
+        yield dut.writeEnabled.eq(0)
+        yield # should see '0'
+        # replace the value of a 'not recently used slot'
+        yield dut.dataIn.eq(11)
+        yield dut.writeEnabled.eq(1)
+        yield
+        yield dut.writeEnabled.eq(0)
+        yield # should see '1'
+        print("All done !")
+
+    sim.add_sync_process(simulation)
+    with sim.write_vcd("test.vcd", "test.gtkw", traces=dut.ports()):
+        sim.run()
+    print('<-- onSimulate')
 
 if __name__ == "__main__":
     # Prepare
@@ -130,57 +258,9 @@ if __name__ == "__main__":
     dataInShape = unsigned(4)
     tagWidth = 2
     m = Module()
-    m.submodules.dut = dut = BinaryTreeCacheOfTaggedValue(1, 0, 2, dataInShape)
+    m.submodules.bench = bench = TestBench(1, 0, tagWidth, dataInShape)
 
-    # Prepare : prepare the test bench : workaround sim , override clk and rst
-    nameOfClockDomain = "sync"
-    m.domains.sync = sync = ClockDomain(nameOfClockDomain)
-    syncClk = ClockSignal(nameOfClockDomain)
-    rst = Signal()
-    sync.rst = rst
-    # Prepare : prepare the test bench : workaround sim , input signals of interest
-    dataIn = Signal(dataInShape, reset=0)
-    m.d.comb += dut.dataIn.eq(dataIn)
-    writeEnabled = Signal()
-    m.d.comb += dut.writeEnabled.eq(writeEnabled)
-
-    # To verify
-    def myVerification(m:Module):
-        pass
-
-    def mySimulation(sim:Simulator, m:Module):
-        # !!! limit the number of clockcycle !
-        # python3 BinaryTreeCacheOfTaggedValue.py simulate -v test.vcd -w test.gtkw -c 5
-        def process():
-            print("Start !")
-            # fill 3 slots
-            yield dataIn.eq(1)
-            yield writeEnabled.eq(1)
-            yield
-            yield dataIn.eq(2)
-            yield
-            yield dataIn.eq(4)
-            yield
-            print("Done filling 3 slots")
-            # match the oldest should be the right hand side, make a match to swap to the left
-            yield writeEnabled.eq(0)
-            yield dataIn.eq(2)
-            yield
-            print("Done activating a cell")
-            # fill a slot will do that in the left hand side
-            yield dataIn.eq(3)
-            print("beep")
-            yield writeEnabled.eq(1)
-            print("beep")
-            yield
-            print("beep")
-            yield writeEnabled.eq(0)
-            print("beep")
-            #yield
-            print("All done !")
-
-        sim.add_sync_process(process)
-
-
-    # Execute
-    main_runner_by_sporniket(parser, args, m, ports=[rst, sync.clk] + dut.ports(), prepareVerification=myVerification, prepareSimulation=mySimulation)
+    if args.action == "generate":
+        onGenerateForCoverage(parser, args, m, bench.dut)
+    else:
+        onSimulate(m, bench)
