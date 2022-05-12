@@ -140,10 +140,8 @@ class TestBench(Elaboratable):
 # callback when simulating
 def onSimulate(m: Module, dut: Elaboratable):
     print('--> onSimulate')
-    #workaround sim bug
-    out = Signal()
-    out.eq(dut.out)
 
+    # prepare simulator
     sim = Simulator(m)
     sim.add_clock(1e-6)
 
