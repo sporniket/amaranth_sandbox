@@ -82,8 +82,19 @@ class StatusRegisterUnit(Elaboratable):
 
         m.d.comb += [
             # extract all outputs from the internal registers
-            self.StatusRegister.eq(self.value)
-            # TODO... HERE
+            self.StatusRegister.eq(self.value),
+            self.ConditionCodeRegister.eq(Cat(self.value[:8],Const(0, unsigned(8)))),
+            # -- system
+            self.Trace.eq(self.value[14:16]),
+            self.Supervisor.eq(self.value[13]),
+            self.MainOrInterrupt.eq(self.value[12]),
+            self.InterruptLevel.eq(self.value[8:11]),
+            # -- user
+            self.Extends.eq(self.value[4]),
+            self.Negative.eq(self.value[3]),
+            self.Zero.eq(self.value[2]),
+            self.Overflow.eq(self.value[1]),
+            self.Carry.eq(self.value[0])
         ]
 
         return m
