@@ -97,4 +97,26 @@ class StatusRegisterUnit(Elaboratable):
             self.Carry.eq(self.value[0])
         ]
 
+        # preparing next value setting
+        next_candidates = Array([Signal(unsigned(16)) for _ in range(16)])
+        # -- next values when SystemDataStrobe is set
+        m.d.comb += [
+            next_candidates[4].eq(self.value | self.DataIn),
+            next_candidates[5].eq(self.value ^ self.DataIn),
+            next_candidates[6].eq(self.value & self.DataIn),
+            next_candidates[7].eq(self.DataIn)
+        ]
+        # -- next values when SystemDataStrobe is cleared
+        for i in range(4):
+            m.d.comb += next_candidates[i].eq(Cat(next_candidates[i + 4][:8], self.value[8:]))
+
+        selected_candidate = Signal(unsigned(3))
+        m.d.comb += selected_candidate.eq(Cat(self.Operation, self.SystemDataStrobe))
+
+        # Change of Status
+        with m.If(self.OperationStrobe == 1):
+            m.d.sync += self.value.eq(next_candidates[selected_candidate])
+
         return m
+
+### that's all, to be tested
