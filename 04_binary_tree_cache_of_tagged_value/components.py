@@ -54,3 +54,46 @@ class CellOfTaggedValue(Elaboratable):
         m.d.sync += self.isBound.eq(self.writeEnabled)
 
         return m
+
+class DataChangeWatcher(Elaboratable):
+    """
+    Components that signals when an input data changes.
+    """
+
+    def __init__(self, valueShape:Shape):
+        # internal registers
+        self.previousData = Signal(shape=dataShape)
+
+        # inputs
+        self.data = Signal(shape=dataShape)
+
+        # outputs
+        self.isDifferentImmediate = Signal()
+        self.isDifferent = Signal() #synchronized latch of isDifferentImmediate
+
+    def ports(self) -> List[Signal]:
+        return [
+            # inputs
+            self.data,
+
+            # outputs
+            self.isDifferent
+        ]
+
+    def elaborate(self, platform: Platform) -> Module:
+        m = Module()
+
+        m.d.sync += [
+            self.previousData.eq(self.data),
+            self.isDifferent.eq(self.isDifferentImmediate)
+        ]
+
+        m.d.comp += self.isDifferentImmediate.eq(self.data == self.previousData)
+
+        return m
+
+
+class Comparator(Elaboratable):
+    """
+    Components that codifies a comparison between 2 inputs.
+    """
