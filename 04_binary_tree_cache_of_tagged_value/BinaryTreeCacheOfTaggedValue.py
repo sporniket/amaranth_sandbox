@@ -1,12 +1,12 @@
 ### local deps
-from CellOfTaggedValue import CellOfTaggedValue
+from components import *
 ### main deps
 from amaranth import *
 from amaranth.build import Platform
 from typing import List, Dict, Tuple, Optional
 ### test deps ###
 from amaranth.sim import Simulator, Delay, Settle
-from amaranth.cli import main_parser # READ amaranth/cli.py to find out parameters and what it does.
+from amaranth.cli import main_parser, main_runner # READ amaranth/cli.py to find out parameters and what it does.
 from amaranth.asserts import * # AnyConst, AnySeq, Assert, Assume, Cover, Past, Stable, Rose, Fell, Initial
 #
 from cli_sporny import main_runner_by_sporniket
@@ -161,7 +161,8 @@ class TestBench(Elaboratable):
         ]
 
         return m
-def ononGenerateForCoverage(parser, args, m:Module, dut: Elaboratable):
+
+def onGenerateForCoverage(parser, args, m:Module, dut: Elaboratable):
     print('--> onGenerateForCoverage')
 
     # prepare some other signals

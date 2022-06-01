@@ -9,7 +9,7 @@ from amaranth.asserts import * # AnyConst, AnySeq, Assert, Assume, Cover, Past, 
 #
 from cli_sporny import main_runner_by_sporniket
 ### local deps ###
-from .components import *
+from components import *
 
 ### Test suite ###
 if __name__ == "__main__":
