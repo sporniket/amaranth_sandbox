@@ -97,3 +97,45 @@ class Comparator(Elaboratable):
     """
     Components that codifies a comparison between 2 inputs.
     """
+
+    def __init__(self, valueShape:Shape, comparisonImpl):
+        """
+        comparisonImpl is a function : comparisonImpl(m:Module, left:Signal, right:Signal) -> Signal.
+        The returned signal has the default shape (unsigned(1))
+        """
+        # inputs
+        self.left = Signal(shape=valueShape)
+        self.right = Signal(shape=valueShape)
+
+        # outputs
+        self.resultImmediate = Signal() # result of comparing a with b
+        self.result = Signal() # synchronous latch of resultImmediate
+        self.resultSymetricImmediate = Signal() # result of comparing b with a
+        self.resultSymetric = Signal() # synchronous latch of resultSymetricImmediate
+
+        # store the implementation function
+        self.comparisonImpl = comparisonImpl
+
+    def ports(self) -> List[Signal]:
+        return [
+            #inputs
+            self.left, self.right,
+            #outputs
+            self.resultImmediate,self.result,
+            self.resultSymetricImmediate, self.resultSymetric
+        ]
+
+    def elaborate(self, platform: Platform) -> Module:
+        m = Module()
+
+        m.d.comb += [
+            self.resultImmediate.eq(self.comparisonImpl(m, self.left, self.right)),
+            self.resultSymetricImmediate.eq(self.comparisonImpl(m, self.right, self.left)),
+        ]
+
+        m.d.sync += [
+            self.result.eq(self.resultImmediate),
+            self.resultSymetric.eq(self.resultSymetricImmediate)
+        ]
+
+        return m
