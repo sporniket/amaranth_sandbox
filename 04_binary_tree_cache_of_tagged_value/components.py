@@ -139,3 +139,10 @@ class Comparator(Elaboratable):
         ]
 
         return m
+
+
+def compareValues(m: Module, left: Signal, right: Signal) -> Signal:
+    # FIXME operand shapes MUST be the same
+    result = Signal()
+    result.eq(left <= right)
+    return result
