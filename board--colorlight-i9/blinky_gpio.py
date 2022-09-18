@@ -25,10 +25,12 @@ class BlinkyGpio(Elaboratable):
         self.targetPinIndex = pinIndex
         self.attrs = attrs
 
-    def elaborate(self, platform):
-        m = Module()
+    def setup(self, platform):
+        """Demonstrate how to setup a pin of the platform
 
-        # -- -- setup target pins
+        Args:
+            platform (Platform): the platform to update.
+        """
         # retrieve the targeted pin
         pin_name = platform.connectors[self.connectorName, self.connectorIndex].mapping[str(self.targetPinIndex)]
         print(f"pin name = {pin_name}")
@@ -41,7 +43,13 @@ class BlinkyGpio(Elaboratable):
         # append resource into platform
         platform.add_resources([res])
 
-        # -- -- actual module
+    def elaborate(self, platform):
+        m = Module()
+
+        # -- -- configure the targeted pin as "my_gpio" index 0
+        self.setup(platform)
+
+        # -- -- make my_gpio[0] blink
         target = platform.request("my_gpio",0)
 
         clk_freq = platform.default_clk_frequency
