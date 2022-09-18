@@ -29,9 +29,9 @@ class Colorlight_I9_V7_2_Platform(LatticeECP5Platform):
         Connector(
             "p",
             2,
-            "- - - - K18  L2 T18 C18 R17 R18 M17 P17" #first pmod
-            "U18 T17 - - P18 U17" 
-            "- - - - N18 N17 L20 M18 K20 L18 J20 G20" # second pmod CHECK J20/G20,
+            "- - - - K18  L2 T18 C18 R17 R18 M17 P17 " #first pmod
+            "U18 T17 - - P18 U17 " 
+            "- - - - N18 N17 L20 M18 K20 L18 G20 J20" # second pmod
         ),
     ]
 
