@@ -12,62 +12,42 @@ from amaranth.asserts import *  # AnyConst, AnySeq, Assert, Assume, Cover, Past,
 from amaranth.back import rtlil, cxxrtl, verilog
 import inspect
 import subprocess
+import re
 
 from demux import Demux
 
-
-class TestOfDemux:
-    def setup(self):
-        self.m = m = Module()
-        self.channelCount = channelCount = 3
-        m.submodules.demux = demux = Demux(channelCount)
-
-        # Prepare : prepare the test bench : workaround sim bug , override clk and rst
-        nameOfClockDomain = "sync"
-        m.domains.sync = sync = ClockDomain(nameOfClockDomain)
-        self.rst = rst = Signal()
-        sync.rst = rst
-        # Prepare : prepare the test bench : workaround sim bug , input signals of interest
-        self.dataIn = dataIn = Signal(demux.input.shape())
-        m.d.comb += demux.input.eq(dataIn)
-        self.setupVerify()
-
-    def setupVerify(self):
-        m = self.m
-        rst = self.rst
-        demux = m.submodules.demux
-        for i in range(0, self.channelCount):
-            with m.If(~Past(rst) & (Past(demux.input) == i)):
-                m.d.sync += [
-                    Assert(demux.output == (1 << i)),
-                    Assert(~(demux.outOfRange)),
-                ]
-        with m.If(~Past(rst) & (Past(demux.input) == self.channelCount)):
-            m.d.sync += [Assert(demux.output == 0), Assert(demux.outOfRange)]
-
-    def run(self, platform=None):
-        fragment = Fragment.get(self.m, platform)
-        generate_type = "il"  # "il" -> rtlil / "cc" -> cxxrtl
-        name = "top"  # name of module
-        output = rtlil.convert(
-            fragment,
-            ports=[self.rst, ClockSignal("sync")] + self.m.submodules.demux.ports(),
-        )
-
-        # target file
-        outputFileNameBase = (
-            f"tmp.{self.__class__.__name__}__{inspect.currentframe().f_code.co_name}"
-        )
-        outputFileName = f"{outputFileNameBase}.il"
-        sbyFileName = f"{outputFileNameBase}.sby"
-
-        # generate rtlil
-        print(f"Generating {outputFileName}...")
-        with open(outputFileName, "wt") as f:
-            f.write(output)
-
-        # generate sby config
-        configLines = [
+class Test:
+    """Just a collection of utilities"""
+    @staticmethod
+    def _clockDomain(name = "sync") -> ClockDomain:
+        """Retrieve the named clock domain and make sure it has a rst signal"""
+        cd = ClockDomain(name)
+        cd.rst = Signal() # FIXME only if cd.rst does not exist (no such attribute or none)
+        return cd
+    
+    @staticmethod
+    def _buildTestBench(dut:Elaboratable, test) -> Module:
+        m = Module()
+        cd = Test._clockDomain("sync")
+        m.domains.sync = cd
+        m.submodules.dut = dut
+        test(m,cd)
+        return m
+    
+    @staticmethod
+    def _asSafeName(description:str)->str:
+        safeName = re.sub('[ \'"()\\[\\]]', '-', description)
+        safeName = re.sub('[.]+', ' ', safeName)
+        safeName = safeName.strip()
+        safeName = re.sub('[ ]+', '_', safeName)
+        safeName = re.sub('[-]*[_][-_]*', '_', safeName)
+        return safeName
+    
+    @staticmethod
+    def _generateSbyConfig(sbyName:str, ilName:str, depth:int):
+        print(f"Generating {sbyName}...")
+        with open(sbyName, "wt") as f:
+            f.write("\n".join([
             "[tasks]",
             "bmc",
             "cover",
@@ -75,34 +55,82 @@ class TestOfDemux:
             "[options]",
             "bmc: mode bmc",
             "cover: mode cover",
-            "depth 2",
+            f"depth {depth}",
             "multiclock off",
             "",
             "[engines]",
             "smtbmc boolector",
             "",
             "[script]",
-            f"read_ilang {outputFileName}",
+            f"read_ilang {ilName}",
             "prep -top top",
             "",
             "[files]",
-            f"{outputFileName}",
-        ]
-        print(f"Generating {sbyFileName}...")
-        with open(sbyFileName, "wt") as f:
-            f.write("\n".join(configLines))
+            f"{ilName}",
+        ]))
+    
+    @staticmethod
+    def describe(description:str, dut:Elaboratable, test, depth:int, platform:Platform = None):
+        """Perform a test on amaranth module using SymbiYosis (sby)
 
-        print(f"Running sby -f {sbyFileName}...")
-        with subprocess.Popen(["sby", "-f", sbyFileName]) as proc:
-            if proc.returncode != 0:
+        Args:
+            description (str): A distinctive, one line description ; file names will be derived from the description.
+            dut (Elaboratable): The amaranth module to test
+            test (_type_): a function(m:Module, cd:ClockDomain) that will append assertions tho the given module.
+            depth (int): The depth of the formal verification to perform
+            platform (Platform): the test platform
+        """
+        print(f"##########>")
+        print(f"##########> {description}")
+        print(f"##########>")
+        baseName = Test._asSafeName(description)
+        ilName = f"tmp.{baseName}.il"
+        sbyName = f"tmp.{baseName}.sby"
+
+        m = Test._buildTestBench(dut, test)
+        fragment = Fragment.get(m, platform)
+        output = rtlil.convert(
+            fragment,
+            ports=dut.ports(),
+        )
+        print(f"Generating {ilName}...")
+        with open(ilName, "wt") as f:
+            f.write(output)
+        Test._generateSbyConfig(sbyName, ilName, depth)
+
+        print(f"Running sby -f {sbyName}...")
+        with subprocess.Popen(["sby", "-f", sbyName]) as proc:
+            if proc.returncode is not None and proc.returncode != 0:
                 exit(proc.returncode)
 
 
-def run():
-    test = TestOfDemux()
-    test.setup()
-    test.run()
+def shouldAssertTheCorrectBitWhenInputIsInRange(m:Module, cd:ClockDomain):
+    rst = cd.rst
+    demux = m.submodules.dut
+    channelCount = demux.channelCount
+    for i in range(0, channelCount):
+        with m.If(~Past(rst) & (Past(demux.input) == i)):
+            m.d.sync += [
+                Assert(demux.output == (1 << i)),
+                Assert(~(demux.outOfRange)),
+            ]
 
+def shouldAssertTheErrorBitWhenInputIsOutOfRange(m:Module, cd:ClockDomain):
+    rst = cd.rst
+    demux = m.submodules.dut
+    channelCount = demux.channelCount
+    with m.If(~Past(rst) & (Past(demux.input) == channelCount)):
+        m.d.sync += [Assert(demux.output == 0), Assert(demux.outOfRange)]
+
+
+def run(width:int):
+    dut = Demux((1<<2)-1) # meaning that there is 1 invalid input for testing the error signal of demux
+    Test.describe("should assert the correct bit according to input", dut, shouldAssertTheCorrectBitWhenInputIsInRange, 2)
+    Test.describe("should assert the error bit when input is out of range", dut, shouldAssertTheCorrectBitWhenInputIsInRange, 2)
+
+def test_all():
+    """To be run using 'python3 -m pytest test_demux.py'"""
+    run(16)
 
 if __name__ == "__main__":
-    run()
+    run(8)
