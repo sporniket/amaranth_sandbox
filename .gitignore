@@ -1,3 +1,8 @@
+#### Specific to sporniket projects
+# local/temporary objects
+tmp.*
+
+
 #### Specific to amaranth projects
 *.vcd
 *.gtkw
