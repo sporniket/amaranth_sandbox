@@ -1,6 +1,7 @@
 from colorlight_i9 import Colorlight_I9_V7_2_Platform
 from blinky import *
 from blinky_gpio import *
+from chaser_gpio import *
 from amaranth import Elaboratable
 from amaranth.build import Platform
 from typing import List
@@ -55,6 +56,9 @@ class GroupOfTests(TestRunner):
         if askContinue() is True:
             for test in self.tests:
                 test.run()
+                if isinstance(test, PlatformDemoTestRunner):
+                    if askContinue() is False:
+                        break
         print(f"-- -- -- -- -- -- -- -- [ END OF GROUP {self.label} ] -- -- -- -- -- -- -- --")
     
 if __name__ == "__main__":
@@ -68,31 +72,17 @@ if __name__ == "__main__":
                 "Test connectors p2..p6 of the expansion board needs to connect LEDs to one row of the connector, for each row",
                 [
                     GroupOfTests(f"Connector 'p'#{conn_index}", "", [
-                        GroupOfTests(
+                        PlatformDemoTestRunner(
                             f"Testing connector 'p'#{conn_index} -- row 1", 
                             f"INSTALL test rig on row 1 of connector {conn_index}", 
-                            [
-                                PlatformDemoTestRunner(
-                                    f"Pin Under Test : #{pin}", 
-                                    "", 
-                                    Colorlight_I9_V7_2_Platform(), 
-                                    BlinkyGpio("p",conn_index,pin)
-                                )
-                                for pin in (5,7,9,11,13,17,23,25,27,29)
-                            ]
+                            Colorlight_I9_V7_2_Platform(), 
+                            ChaserGpio("p", conn_index, (5,7,9,11,13,17,23,25,27,29))
                         ),
-                        GroupOfTests(
-                            f"Testing connector 'p'#{conn_index} -- row 2", 
+                        PlatformDemoTestRunner(
+                            f"Testing connector 'p'#{conn_index} -- row 1", 
                             f"INSTALL test rig on row 2 of connector {conn_index}", 
-                            [
-                                PlatformDemoTestRunner(
-                                    f"Pin Under Test : #{pin}", 
-                                    "", 
-                                    Colorlight_I9_V7_2_Platform(), 
-                                    BlinkyGpio("p",conn_index,pin)
-                                )
-                                for pin in (6,8,10,12,14,18,24,26,28,30)
-                            ]
+                            Colorlight_I9_V7_2_Platform(), 
+                            ChaserGpio("p", conn_index, (6,8,10,12,14,18,24,26,28,30))
                         ),
                     ]
                     ) for conn_index in (2,)
